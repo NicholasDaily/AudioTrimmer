@@ -1,6 +1,10 @@
-use std::{fs::File, io::{stdin, Write}, num::NonZero};
 use rodio::{source::Source, Decoder, OutputStream, Sink};
 use std::time::Duration;
+use std::{
+    fs::File,
+    io::{stdin, Write},
+    num::NonZero,
+};
 use vorbis_rs::{VorbisDecoder, VorbisEncoderBuilder};
 struct MySource {
     buf: Vec<f32>,
@@ -54,42 +58,40 @@ fn main() {
     let mut end = get_duration(&audio_data);
 
     loop {
-        let status= create_audio_selection_status(78, &audio_data, start, end);
+        let status = create_audio_selection_status(78, &audio_data, start, end);
         println!("File:{}\nStatus:\n{}", &file_path, status);
 
         println!("Enter a command: ");
         let mut line = String::new();
         stdin().read_line(&mut line).unwrap();
-        
-        
+
         match line.trim() {
             "play" => {
                 play_audio(get_audio_slice(&audio_data, start, end), &mut sink);
             }
-            "save" =>{
+            "save" => {
                 save_audio_file(get_audio_slice(&audio_data, start, end));
             }
-            "set_start"=>{
-               let temp_start = get_second_value();
-               if temp_start != -1.0 {
-                start = temp_start;
-               }
+            "set_start" => {
+                let temp_start = get_second_value();
+                if temp_start != -1.0 {
+                    start = temp_start;
+                }
             }
-            "set_end"=>{
+            "set_end" => {
                 let temp_end = get_second_value();
-               if temp_end != -1.0 {
-                end = temp_end;
-               }
+                if temp_end != -1.0 {
+                    end = temp_end;
+                }
             }
-            "quit"=>{
+            "quit" => {
                 break;
-            }           
-            _=> {
+            }
+            _ => {
                 continue;
             }
         }
     }
-
 }
 
 fn get_second_value() -> f64 {
@@ -99,32 +101,33 @@ fn get_second_value() -> f64 {
         stdin().read_line(&mut temp_buf).unwrap();
         temp_buf = temp_buf.as_str().trim().to_string();
         if let Ok(some_val) = temp_buf.parse::<f64>() {
-            if some_val >= 0.0{
+            if some_val >= 0.0 {
                 return some_val;
             }
-        }else{
+        } else {
             if temp_buf == "back" {
                 return -1.0;
             }
         }
-        
-
     }
 }
 
-fn save_audio_file(audio_data : &[f32]) {
+fn save_audio_file(audio_data: &[f32]) {
     println!("Enter a file name, (.ogg will be appended)\n:");
     let mut file_path = String::new();
-        stdin().read_line(&mut file_path).unwrap();
+    stdin().read_line(&mut file_path).unwrap();
     file_path = file_path.as_str().trim().to_string();
     file_path.push_str(".ogg");
-    
+
     let mut output_vec = vec![];
     let mut encoder = VorbisEncoderBuilder::new(
         NonZero::new(44100).unwrap(),
         NonZero::new(2).unwrap(),
-        &mut output_vec
-    ).unwrap().build().unwrap();
+        &mut output_vec,
+    )
+    .unwrap()
+    .build()
+    .unwrap();
 
     let mut left = vec![];
     let mut right = vec![];
@@ -145,23 +148,20 @@ fn save_audio_file(audio_data : &[f32]) {
     let mut output_file = File::create_new(&file_path).unwrap();
 
     _ = output_file.write_all(&output_vec).unwrap();
-
-
-
 }
 
-fn create_audio_selection_status(width : u64, audio_data : &[f32], start : f64, end : f64) -> String {
+fn create_audio_selection_status(width: u64, audio_data: &[f32], start: f64, end: f64) -> String {
     let duration = get_duration(audio_data);
     let start_indicator_position = start / duration;
     let end_indicator_position = end / duration;
-    let start_position = width as f64 * start_indicator_position ;
-    let end_position = width as f64 * end_indicator_position ;
+    let start_position = width as f64 * start_indicator_position;
+    let end_position = width as f64 * end_indicator_position;
     let mut status = String::new();
     status.push('[');
     for i in 0..width {
-        if i as f64 >= start_position &&  i as f64 <= end_position {
+        if i as f64 >= start_position && i as f64 <= end_position {
             status.push('#');
-        }else{
+        } else {
             status.push(' ');
         }
     }
@@ -169,8 +169,8 @@ fn create_audio_selection_status(width : u64, audio_data : &[f32], start : f64, 
     status
 }
 
-fn decode_audio_file(file : &mut File) -> Vec<f32> {
-    let mut decoder = VorbisDecoder::new( file).unwrap();
+fn decode_audio_file(file: &mut File) -> Vec<f32> {
+    let mut decoder = VorbisDecoder::new(file).unwrap();
 
     let mut ogg_data = vec![];
     while let Some(decoded_block) = decoder.decode_audio_block().unwrap() {
@@ -181,31 +181,29 @@ fn decode_audio_file(file : &mut File) -> Vec<f32> {
                 ogg_data.push(block[i]);
             }
         }
-
     }
     ogg_data
 }
 
-fn get_audio_slice(audio_data : &[f32], start : f64, end : f64) -> &[f32] {
-    
+fn get_audio_slice(audio_data: &[f32], start: f64, end: f64) -> &[f32] {
     let start_index = get_index_from_second(start);
     let end_index = get_index_from_second(end);
     &audio_data[start_index as usize..end_index as usize]
 }
 
-fn get_index_from_second(second : f64) -> usize {
-      let index = (second * 88200.00) as usize;
-      if index % 2 == 0 {
+fn get_index_from_second(second: f64) -> usize {
+    let index = (second * 88200.00) as usize;
+    if index % 2 == 0 {
         return index;
-      }
-      index - 1
+    }
+    index - 1
 }
 
-fn get_duration(audio_data : &[f32]) -> f64{
+fn get_duration(audio_data: &[f32]) -> f64 {
     audio_data.len() as f64 / 88200.00
 }
 
-fn play_audio(audio_data : &[f32], sink : &mut Sink) -> () {
+fn play_audio(audio_data: &[f32], sink: &mut Sink) -> () {
     sink.stop();
     let source = MySource::new(Vec::from(audio_data));
     sink.append(source);
