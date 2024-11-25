@@ -51,6 +51,7 @@ pub struct AudioVec {
     pub sample_rate: f64, //88200.00
     pub sink: Sink,
     pub current_position: f64,
+    pub filepath: String,
 }
 
 impl AudioVec {
@@ -74,6 +75,10 @@ impl AudioVec {
         self.sink.stop();
         let source = MySource::new(Vec::from(self.get_audio_slice()));
         self.sink.append(source);
+    }
+
+    pub fn get_path(&self) -> String {
+        self.filepath.clone()
     }
 
     pub fn get_play_position(&self) -> f64 {

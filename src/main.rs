@@ -20,12 +20,13 @@ fn main() {
     let mut source_ogg = File::open(&file_path).unwrap();
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
 
-    let mut audio_vec = audio_vec_from_file(source_ogg, &stream_handle).unwrap();
+    let mut audio_vec =
+        audio_vec_from_file(source_ogg, &stream_handle, file_path.to_string()).unwrap();
 
     print!("\x1B[2J\x1B[1;1H");
     loop {
         let status = create_audio_selection_status(78, &audio_vec);
-        println!("File:{}\nStatus:\n{}", &file_path, status);
+        println!("File:{}\nStatus:\n{}", audio_vec.get_path(), status);
 
         println!("Enter a command (\"command_list\"): ");
         let mut line = String::new();
@@ -102,7 +103,7 @@ fn set_source(output_stream_handle: &OutputStreamHandle) -> Option<AudioVec> {
         stdin().read_line(&mut temp_buf).unwrap();
         temp_buf = temp_buf.as_str().trim().to_string();
         if let Ok(mut file) = File::open(&temp_buf) {
-            let mut audio = audio_vec_from_file(file, output_stream_handle).unwrap();
+            let mut audio = audio_vec_from_file(file, output_stream_handle, temp_buf).unwrap();
             audio.set_trim_end(audio.get_duration());
 
             return Some(audio);
@@ -112,7 +113,11 @@ fn set_source(output_stream_handle: &OutputStreamHandle) -> Option<AudioVec> {
     }
 }
 
-fn audio_vec_from_file(mut file: File, stream_handle: &OutputStreamHandle) -> Option<AudioVec> {
+fn audio_vec_from_file(
+    mut file: File,
+    stream_handle: &OutputStreamHandle,
+    file_path: String,
+) -> Option<AudioVec> {
     let audio_data = decode_audio_file(&mut file);
     let mut sink = Sink::try_new(stream_handle).unwrap();
     let mut audio = AudioVec {
@@ -122,6 +127,7 @@ fn audio_vec_from_file(mut file: File, stream_handle: &OutputStreamHandle) -> Op
         sample_rate: 88200.00,
         sink: sink,
         current_position: 0.0,
+        filepath: file_path,
     };
 
     Some(audio)
