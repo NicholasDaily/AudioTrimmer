@@ -1,6 +1,8 @@
+mod audio_container;
 mod audio_data;
 
-use audio_data::AudioVec;
+use audio_container::{AudioContainer, OggContainer};
+use audio_data::{Audio, AudioVec};
 use rodio::OutputStreamHandle;
 use rodio::{source::Source, Decoder, OutputStream, Sink};
 use std::time::Duration;
@@ -9,8 +11,7 @@ use std::{
     io::{stdin, Write},
     num::NonZero,
 };
-use vorbis_rs::{VorbisDecoder, VorbisEncoderBuilder};
-
+use vorbis_rs::VorbisEncoderBuilder;
 struct Color(u8, u8, u8);
 
 struct TerminalColor(Color, Color); //FOREGROUND, BACKGROUND
@@ -19,9 +20,15 @@ fn main() {
     let file_path = "audio.ogg";
     let mut source_ogg = File::open(&file_path).unwrap();
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-
-    let mut audio_vec =
-        audio_vec_from_file(source_ogg, &stream_handle, file_path.to_string()).unwrap();
+    let file_extension = get_file_extension_from_path(&file_path.to_string());
+    let container = get_supported_container_type(&file_extension);
+    let mut audio_vec = audio_vec_from_file(
+        source_ogg,
+        &stream_handle,
+        file_path.to_string(),
+        container.unwrap(),
+    )
+    .unwrap();
 
     print!("\x1B[2J\x1B[1;1H");
     loop {
@@ -103,11 +110,32 @@ fn set_source(output_stream_handle: &OutputStreamHandle) -> Option<AudioVec> {
         stdin().read_line(&mut temp_buf).unwrap();
         temp_buf = temp_buf.as_str().trim().to_string();
         if let Ok(mut file) = File::open(&temp_buf) {
-            let mut audio = audio_vec_from_file(file, output_stream_handle, temp_buf).unwrap();
-            audio.set_trim_end(audio.get_duration());
+            let file_path_parts: Vec<&str> = temp_buf.split('.').collect();
+            let file_extension = file_path_parts[file_path_parts.len() - 1];
 
-            return Some(audio);
+            if let Some(container) = get_supported_container_type(file_extension) {
+                let mut audio =
+                    audio_vec_from_file(file, output_stream_handle, temp_buf.clone(), container)
+                        .unwrap();
+
+                audio.set_trim_end(audio.get_duration());
+
+                return Some(audio);
+            } else {
+                return None;
+            }
         } else {
+            return None;
+        }
+    }
+}
+
+fn get_supported_container_type(extension: &str) -> Option<&dyn AudioContainer> {
+    match extension.to_lowercase().as_str() {
+        "ogg" => {
+            return Some(&OggContainer);
+        }
+        _ => {
             return None;
         }
     }
@@ -117,11 +145,13 @@ fn audio_vec_from_file(
     mut file: File,
     stream_handle: &OutputStreamHandle,
     file_path: String,
+    container: &dyn AudioContainer,
 ) -> Option<AudioVec> {
-    let audio_data = decode_audio_file(&mut file);
+    let Audio(audio_data) = container.decode(&mut file);
+
     let mut sink = Sink::try_new(stream_handle).unwrap();
     let mut audio = AudioVec {
-        audio_data: audio_data,
+        audio_data: Audio(audio_data),
         trim_start: 0.00,
         trim_end: 202.00,
         sample_rate: 88200.00,
@@ -153,41 +183,20 @@ fn get_second_value() -> f64 {
 
 fn save_audio_file(audio_vec: &AudioVec) {
     let audio_data = audio_vec.get_audio_slice();
-    println!("Enter a file name, (.ogg will be appended)\n:");
+    println!("Enter a file name:");
     let mut file_path = String::new();
     stdin().read_line(&mut file_path).unwrap();
     file_path = file_path.as_str().trim().to_string();
-    file_path.push_str(".ogg");
+    let file_extension = get_file_extension_from_path(&file_path);
 
-    let mut output_vec = vec![];
-    let mut encoder = VorbisEncoderBuilder::new(
-        NonZero::new(44100).unwrap(),
-        NonZero::new(2).unwrap(),
-        &mut output_vec,
-    )
-    .unwrap()
-    .build()
-    .unwrap();
-
-    let mut left = vec![];
-    let mut right = vec![];
-
-    for i in 0..audio_data.len() {
-        if i % 2 != 0 {
-            right.push(audio_data[i]);
-            continue;
-        }
-        left.push(audio_data[i]);
+    if let Some(container) = get_supported_container_type(file_extension.as_str()) {
+        container.save(&Audio(audio_vec.get_audio_slice().to_vec()), &file_path);
     }
+}
 
-    let both = vec![left, right];
-
-    encoder.encode_audio_block(both).unwrap();
-    encoder.finish().unwrap();
-
-    let mut output_file = File::create_new(&file_path).unwrap();
-
-    _ = output_file.write_all(&output_vec).unwrap();
+fn get_file_extension_from_path(path: &String) -> String {
+    let file_path_parts: Vec<&str> = path.split('.').collect();
+    file_path_parts[file_path_parts.len() - 1].to_string()
 }
 
 fn create_audio_selection_status(width: u64, audio_vec: &AudioVec) -> String {
@@ -227,22 +236,6 @@ fn create_audio_selection_status(width: u64, audio_vec: &AudioVec) -> String {
         .as_str(),
     );
     status
-}
-
-fn decode_audio_file(file: &mut File) -> Vec<f32> {
-    let mut decoder = VorbisDecoder::new(file).unwrap();
-
-    let mut ogg_data = vec![];
-    while let Some(decoded_block) = decoder.decode_audio_block().unwrap() {
-        let l_audio = decoded_block.samples();
-        let num_samples = l_audio[0].len();
-        for i in 0..num_samples {
-            for block in decoded_block.samples() {
-                ogg_data.push(block[i]);
-            }
-        }
-    }
-    ogg_data
 }
 
 fn round_to_decimal(num: f64, place: u32) -> f64 {
