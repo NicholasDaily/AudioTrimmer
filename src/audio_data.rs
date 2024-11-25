@@ -2,9 +2,6 @@ use std::time::Duration;
 
 use rodio::Sink;
 
-
-
-
 struct MySource {
     buf: Vec<f32>,
     cur_idx: usize,
@@ -48,16 +45,15 @@ impl rodio::Source for MySource {
 }
 
 pub struct AudioVec {
-    pub audio_data : Vec<f32>,
-    pub trim_start : f64,
-    pub trim_end : f64,
-    pub sample_rate : f64, //88200.00
-    pub sink : Sink,
-    pub current_position : f64
+    pub audio_data: Vec<f32>,
+    pub trim_start: f64,
+    pub trim_end: f64,
+    pub sample_rate: f64, //88200.00
+    pub sink: Sink,
+    pub current_position: f64,
 }
 
 impl AudioVec {
-
     pub fn get_duration(&self) -> f64 {
         self.audio_data.len() as f64 / self.sample_rate
     }
@@ -80,7 +76,7 @@ impl AudioVec {
         self.sink.append(source);
     }
 
-    pub fn get_play_position(&self) -> f64{
+    pub fn get_play_position(&self) -> f64 {
         self.sink.get_pos().as_secs_f64()
     }
 
@@ -102,14 +98,11 @@ impl AudioVec {
         self.trim_end
     }
 
-    pub fn set_trim_start(&mut self, seconds : f64) {
+    pub fn set_trim_start(&mut self, seconds: f64) {
         self.trim_start = seconds;
     }
 
-    pub fn set_trim_end(&mut self, seconds: f64){
+    pub fn set_trim_end(&mut self, seconds: f64) {
         self.trim_end = seconds;
     }
-
-
-
 }
